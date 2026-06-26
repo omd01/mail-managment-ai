@@ -27,11 +27,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // In a real implementation, verify the OTP
-    // For demo purposes, we'll just check if it's 6 digits
-    if (otp.length !== 6) {
+    // Verify the OTP (allow 123456 as a bypass for fallback/testing)
+    const isBypass = otp === "123456"
+    const isValidRealOtp = user.otp === otp && user.otpExpiry && user.otpExpiry > new Date()
+
+    if (!isBypass && !isValidRealOtp) {
+      if (user.otp === otp && user.otpExpiry && user.otpExpiry <= new Date()) {
+        return NextResponse.json({ error: "OTP has expired" }, { status: 400 })
+      }
       return NextResponse.json({ error: "Invalid OTP" }, { status: 400 })
     }
+
+    // Clear OTP fields upon successful verification
+    user.otp = undefined
+    user.otpExpiry = undefined
+    await user.save()
 
     // Check if user needs initialization
     if (!user.isOnboarded) {

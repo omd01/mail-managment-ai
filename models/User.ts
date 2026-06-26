@@ -11,6 +11,8 @@ export interface IUser extends Document {
   domain?: string
   domainVerified?: boolean
   isOnboarded: boolean
+  otp?: string
+  otpExpiry?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -27,6 +29,8 @@ const UserSchema: Schema = new Schema(
     domain: { type: String },
     domainVerified: { type: Boolean, default: false },
     isOnboarded: { type: Boolean, default: false },
+    otp: { type: String },
+    otpExpiry: { type: Date },
   },
   { timestamps: true },
 )
