@@ -6,20 +6,19 @@ import {
   GetIdentityVerificationAttributesCommand,
   GetIdentityDkimAttributesCommand,
 } from "@aws-sdk/client-ses"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { getCurrentUser } from "@/lib/auth-utils"
 import { connectToDatabase } from "@/lib/db"
 import User from "@/models/User"
 
 export async function POST(request: Request) {
   try {
-    // Get the current user from the session
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    // Get the current user
+    const user = await getCurrentUser()
+    if (!user?.id) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userId = user.id
     const { domain } = await request.json()
 
     if (!domain) {
@@ -28,18 +27,18 @@ export async function POST(request: Request) {
 
     // Get user's AWS credentials
     await connectToDatabase()
-    const user = await User.findById(userId)
+    const dbUser = await User.findById(userId)
 
-    if (!user || !user.awsRegion || !user.awsAccessKeyId || !user.awsSecretAccessKey) {
+    if (!dbUser || !dbUser.awsRegion || !dbUser.awsAccessKeyId || !dbUser.awsSecretAccessKey) {
       return NextResponse.json({ error: "AWS credentials not found" }, { status: 400 })
     }
 
     // Initialize SES client with user's credentials
     const sesClient = new SESClient({
-      region: user.awsRegion,
+      region: dbUser.awsRegion,
       credentials: {
-        accessKeyId: user.awsAccessKeyId,
-        secretAccessKey: user.awsSecretAccessKey,
+        accessKeyId: dbUser.awsAccessKeyId,
+        secretAccessKey: dbUser.awsSecretAccessKey,
       },
     })
 

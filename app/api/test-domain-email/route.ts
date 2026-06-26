@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server"
 import { sendEmail } from "@/lib/aws-ses"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { getCurrentUser } from "@/lib/auth-utils"
 import { connectToDatabase } from "@/lib/db"
 import User from "@/models/User"
 import EmailLog from "@/models/EmailLog"
 
 export async function POST(request: Request) {
   try {
-    // Get the current user from the session
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    // Get the current user
+    const user = await getCurrentUser()
+    if (!user?.id) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userId = user.id
     const { domain, to } = await request.json()
 
     if (!domain || !to) {
@@ -23,9 +22,9 @@ export async function POST(request: Request) {
 
     // Get user's domain verification status
     await connectToDatabase()
-    const user = await User.findById(userId)
+    const dbUser = await User.findById(userId)
 
-    if (!user || !user.domain || !user.domainVerified) {
+    if (!dbUser || !dbUser.domain || !dbUser.domainVerified) {
       return NextResponse.json({ error: "Domain not verified" }, { status: 400 })
     }
 

@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server"
 import { connectToDatabase } from "@/lib/db"
 import User from "@/models/User"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { getCurrentUser } from "@/lib/auth-utils"
 
 export async function POST(request: Request) {
   try {
-    // Get the current user from the session
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    // Get the current user
+    const user = await getCurrentUser()
+    if (!user?.id) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userId = user.id
     const body = await request.json()
     const { awsRegion, awsAccessKeyId, awsSecretAccessKey, keepExistingSecret, domain } = body
 

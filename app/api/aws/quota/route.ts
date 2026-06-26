@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { SESClient, GetSendQuotaCommand, GetAccountSendingEnabledCommand } from "@aws-sdk/client-ses"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { getCurrentUser } from "@/lib/auth-utils"
 import { connectToDatabase } from "@/lib/db"
 import User from "@/models/User"
 
@@ -61,14 +60,14 @@ function sampleQuota() {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const currentUser = await getCurrentUser()
+    if (!currentUser?.id) {
       return NextResponse.json(sampleQuota())
     }
 
     // Prefer the user's stored AWS credentials, then fall back to env vars.
     await connectToDatabase()
-    const user = await User.findById(session.user.id)
+    const user = await User.findById(currentUser.id)
 
     const region = user?.awsRegion || process.env.AWS_REGION
     const accessKeyId = user?.awsAccessKeyId || process.env.AWS_ACCESS_KEY_ID

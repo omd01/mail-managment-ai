@@ -50,14 +50,8 @@ export default function OnboardingFlow() {
   const [testEmailSent, setTestEmailSent] = useState(false)
 
   useEffect(() => {
-    // Check if user is authenticated
-    if (!session?.user) {
-      router.push("/login")
-      return
-    }
-
-    // Fetch user data to pre-fill AWS credentials if they exist
-    const fetchUserData = async () => {
+    // Fetch user data and check authentication status
+    const fetchUserDataAndCheckAuth = async () => {
       try {
         const response = await fetch("/api/user/profile")
         if (response.ok) {
@@ -78,13 +72,21 @@ export default function OnboardingFlow() {
           if (userData.domainVerified) {
             setDomainVerified(true)
           }
+        } else {
+          // If no NextAuth session and API profile fetch fails, redirect to login
+          if (!session?.user) {
+            router.push("/login")
+          }
         }
       } catch (error) {
         console.error("Error fetching user data:", error)
+        if (!session?.user) {
+          router.push("/login")
+        }
       }
     }
 
-    fetchUserData()
+    fetchUserDataAndCheckAuth()
   }, [router, session])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

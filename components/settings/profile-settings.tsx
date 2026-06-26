@@ -44,6 +44,21 @@ export function ProfileSettings() {
         email: session.user.email || "",
         profileImage: session.user.image || "",
       })
+    } else {
+      fetch("/api/user/profile")
+        .then((res) => {
+          if (res.ok) return res.json()
+        })
+        .then((data) => {
+          if (data) {
+            setUserData({
+              name: data.name || "",
+              email: data.email || "",
+              profileImage: data.profileImage || "",
+            })
+          }
+        })
+        .catch(() => {})
     }
   }, [session])
 
