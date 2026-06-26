@@ -46,12 +46,10 @@
   /* Technical Blueprint Grid */
   .blueprint-bg {
     background-image:
-      linear-gradient(rgba(38, 38, 38, 1) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(38, 38, 38, 1) 1px, transparent 1px);
-    background-size: 60px 60px;
+      linear-gradient(rgba(99, 102, 241, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99, 102, 241, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
     background-position: center center;
-    opacity: 0.15;
-    mask-image: radial-gradient(circle at center, black, transparent 80%);
     position: fixed;
     inset: 0;
     z-index: -1;
@@ -60,13 +58,15 @@
 
   /* Handcrafted Editorial Cards */
   .editorial-card {
-    background: var(--surface);
+    background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    transition: border-color 0.3s ease, transform 0.3s cubic-bezier(0.2, 1, 0.3, 1);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.2, 1, 0.3, 1);
+    border-radius: 0.75rem;
   }
 
   .editorial-card:hover {
-    border-color: #404040;
+    border-color: hsl(var(--primary) / 0.2);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
     transform: translateY(-2px);
   }
 
@@ -90,8 +90,7 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    color: #c0c0c0;
-    /* Significantly lighter for visibility */
+    color: hsl(var(--muted-foreground));
   }
 
   /* Micro-details */
@@ -100,27 +99,26 @@
     top: 1.5rem;
     right: 1.5rem;
     font-family: monospace;
-    color: #404040;
+    color: hsl(var(--muted-foreground));
     font-size: 10px;
   }
 
   .btn-handcrafted {
-    background: #ffffff;
-    /* Explicit white for visibility */
-    color: #000000;
-    /* Explicit black for visibility */
-    padding: 1rem 2rem;
-    font-weight: 700;
-    font-size: 12px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.1em;
+    border-radius: 0.5rem;
     transition: all 0.2s ease;
     border: none;
     cursor: pointer;
   }
 
   .btn-handcrafted:hover {
-    filter: invert(1);
+    background: hsl(var(--primary) / 0.9);
     transform: scale(1.02);
   }
 

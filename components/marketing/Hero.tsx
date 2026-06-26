@@ -14,16 +14,16 @@ export function Hero() {
                 </div>
             </div>
 
-            <h1 className="display-large mb-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
+            <h1 className="display-large mb-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200 text-neutral-900">
                 PRECISION <br />
-                DELIVERY<span className="text-neutral-800">.</span>
+                DELIVERY<span className="text-indigo-600">.</span>
             </h1>
 
             <div className="flex flex-col md:flex-row gap-12 items-center animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
                 <Link href="/login">
                     <button className="btn-handcrafted">Deploy Verification Engine</button>
                 </Link>
-                <p className="text-neutral-500 max-w-sm text-sm font-light leading-relaxed">
+                <p className="text-neutral-600 max-w-sm text-sm font-light leading-relaxed">
                     Eliminate bounces before they happen. Our handcrafted SMTP protocol ensures 99.9% accuracy with zero packet loss.
                 </p>
             </div>

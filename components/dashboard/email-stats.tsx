@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getAnalytics } from "@/lib/analytics-client"
 
 interface EmailStatsProps {
   title: string
@@ -12,104 +13,52 @@ interface EmailStatsProps {
   className?: string
 }
 
-// Create a shared analytics data cache
-// let analyticsCache: any = null
-// let lastFetchTime = 0
-// const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
-
-// Shared fetch function to avoid duplicate requests
-async function fetchAnalyticsData() {
-  // Force fresh data on each request
-  const response = await fetch("/api/analytics", {
-    cache: "no-store",
-    headers: {
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch analytics data")
-  }
-
-  return await response.json()
-}
-
 export function EmailStats({ title, statKey, description, className }: EmailStatsProps) {
   const [value, setValue] = useState<string>("0")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statsDescription, setStatsDescription] = useState(description || "")
 
-  const setStat = (newValue: number) => {
-    setValue(newValue.toLocaleString())
-
-    if (!description) {
-      // Fetch latest total to calculate percentages
-      fetchAnalyticsData().then((analyticsData) => {
-        if (analyticsData.emailStats) {
-          const stats = analyticsData.emailStats
-          if (statKey === "delivered" && stats.total > 0) {
-            const percentage = ((stats.delivered / stats.total) * 100).toFixed(1)
-            setStatsDescription(`${percentage}% delivery rate`)
-          } else if (statKey === "bounced" && stats.total > 0) {
-            const percentage = ((stats.bounced / stats.total) * 100).toFixed(1)
-            setStatsDescription(`${percentage}% bounce rate`)
-          } else if (statKey === "opened" && stats.delivered > 0) {
-            const percentage = ((stats.opened / stats.delivered) * 100).toFixed(1)
-            setStatsDescription(`${percentage}% open rate`)
-          } else {
-            setStatsDescription("Total emails sent")
-          }
-        }
-      })
+  const describe = (stats: { total: number; delivered: number; bounced: number; opened: number }) => {
+    if (description) return
+    if (statKey === "delivered" && stats.total > 0) {
+      setStatsDescription(`${((stats.delivered / stats.total) * 100).toFixed(1)}% delivery rate`)
+    } else if (statKey === "bounced" && stats.total > 0) {
+      setStatsDescription(`${((stats.bounced / stats.total) * 100).toFixed(1)}% bounce rate`)
+    } else if (statKey === "opened" && stats.delivered > 0) {
+      setStatsDescription(`${((stats.opened / stats.delivered) * 100).toFixed(1)}% open rate`)
+    } else {
+      setStatsDescription("Total emails sent")
     }
   }
 
-  /*
   useEffect(() => {
-    const controller = new AbortController()
-    const signal = controller.signal
+    let active = true
 
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        const analyticsData = await fetchAnalyticsData()
-
-        if (analyticsData.emailStats && analyticsData.emailStats[statKey] !== undefined) {
-          setStat(analyticsData.emailStats[statKey])
-        } else {
-          setStat(0)
+    getAnalytics()
+      .then((analyticsData) => {
+        if (!active) return
+        const stats = analyticsData.emailStats
+        if (stats && stats[statKey] !== undefined) {
+          setValue(stats[statKey].toLocaleString())
+          describe(stats)
         }
-
         setError(null)
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error(`Error fetching ${statKey} stat:`, error)
-          setError(`Failed to load ${statKey} data`)
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-
-    // Set up a refresh interval (every 30 seconds)
-    const intervalId = setInterval(fetchData, 30000)
+      })
+      .catch((err) => {
+        if (!active) return
+        console.error(`Error fetching ${statKey} stat:`, err)
+        setError(`Failed to load`)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
     return () => {
-      controller.abort()
-      clearInterval(intervalId)
+      active = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statKey])
-  */
-
-  // Auto-fetch disabled
-  useEffect(() => {
-    setLoading(false)
-  }, [])
 
   if (loading) {
     return (

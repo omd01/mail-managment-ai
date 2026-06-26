@@ -19,13 +19,10 @@ export default function IdentitiesPage() {
                 />
 
                 <div className="grid gap-8">
-                    <div className="relative group">
-                        <div className="absolute -inset-0.5 bg-gradient-to-r from-neutral-800 to-neutral-900 rounded-xl blur opacity-50 group-hover:opacity-100 transition duration-1000"></div>
-                        <div className="relative bg-black rounded-xl border border-neutral-800 p-6 md:p-8 overflow-hidden">
-                            <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-white" /></div>}>
-                                <EmailSettings />
-                            </Suspense>
-                        </div>
+                    <div className="relative bg-white rounded-xl border border-neutral-200 p-6 md:p-8 shadow-sm">
+                        <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-neutral-900" /></div>}>
+                            <EmailSettings />
+                        </Suspense>
                     </div>
                 </div>
             </div>

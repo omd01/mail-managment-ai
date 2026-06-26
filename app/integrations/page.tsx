@@ -20,11 +20,18 @@ import {
 import { Cable, Key, ShieldCheck, Construction, Loader2, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 
+interface IntegrationInfo {
+    isActive: boolean
+    configured: boolean
+    source?: string | null
+    masked?: any
+}
+
 export default function IntegrationsPage() {
     const [isLoading, setIsLoading] = useState(true)
-    const [integrations, setIntegrations] = useState<Record<string, boolean>>({
-        aws: false,
-        resend: false
+    const [info, setInfo] = useState<Record<string, IntegrationInfo>>({
+        aws: { isActive: false, configured: false },
+        resend: { isActive: false, configured: false },
     })
 
     // AWS Config State
@@ -41,29 +48,45 @@ export default function IntegrationsPage() {
     const [resendKey, setResendKey] = useState("")
     const [isSavingResend, setIsSavingResend] = useState(false)
 
-    // Fetch initial status
-    useEffect(() => {
-        const fetchIntegrations = async () => {
-            try {
-                const res = await fetch("/api/integrations")
-                if (res.ok) {
-                    const data = await res.json()
-                    const statusMap: Record<string, boolean> = {}
-                    data.integrations.forEach((i: any) => {
-                        statusMap[i.provider] = i.isActive
-                    })
-                    setIntegrations(prev => ({ ...prev, ...statusMap }))
-                }
-            } catch (error) {
-                console.error("Failed to fetch integrations", error)
-            } finally {
-                setIsLoading(false)
+    const fetchIntegrations = async () => {
+        try {
+            const res = await fetch("/api/integrations")
+            if (res.ok) {
+                const data = await res.json()
+                const map: Record<string, IntegrationInfo> = {}
+                data.integrations.forEach((i: any) => {
+                    map[i.provider] = {
+                        isActive: i.isActive,
+                        configured: i.configured,
+                        source: i.source,
+                        masked: i.masked,
+                    }
+                })
+                setInfo(prev => ({ ...prev, ...map }))
             }
+        } catch (error) {
+            console.error("Failed to fetch integrations", error)
+        } finally {
+            setIsLoading(false)
         }
+    }
+
+    useEffect(() => {
         fetchIntegrations()
     }, [])
 
     const handleSaveAws = async () => {
+        // If creds already exist and the form is blank, just (re)activate them.
+        if (info.aws.configured && (!awsConfig.accessKeyId || !awsConfig.secretAccessKey)) {
+            setAwsDialogOpen(false)
+            await setActive("aws", true)
+            return
+        }
+        if (!awsConfig.accessKeyId || !awsConfig.secretAccessKey) {
+            toast.error("Access Key ID and Secret Access Key are required")
+            return
+        }
+
         setIsSavingAws(true)
         try {
             const res = await fetch("/api/integrations", {
@@ -78,8 +101,9 @@ export default function IntegrationsPage() {
 
             if (!res.ok) throw new Error("Failed to save")
 
-            setIntegrations(prev => ({ ...prev, aws: true }))
             setAwsDialogOpen(false)
+            setAwsConfig({ accessKeyId: "", secretAccessKey: "", region: "us-east-1" })
+            await fetchIntegrations()
             toast.success("AWS SES Connected successfully")
         } catch (error) {
             toast.error("Failed to connect AWS SES")
@@ -89,6 +113,16 @@ export default function IntegrationsPage() {
     }
 
     const handleSaveResend = async () => {
+        if (info.resend.configured && !resendKey) {
+            setResendDialogOpen(false)
+            await setActive("resend", true)
+            return
+        }
+        if (!resendKey) {
+            toast.error("API Key is required")
+            return
+        }
+
         setIsSavingResend(true)
         try {
             const res = await fetch("/api/integrations", {
@@ -103,8 +137,9 @@ export default function IntegrationsPage() {
 
             if (!res.ok) throw new Error("Failed to save")
 
-            setIntegrations(prev => ({ ...prev, resend: true }))
             setResendDialogOpen(false)
+            setResendKey("")
+            await fetchIntegrations()
             toast.success("Resend Connected successfully")
         } catch (error) {
             toast.error("Failed to connect Resend")
@@ -113,49 +148,32 @@ export default function IntegrationsPage() {
         }
     }
 
-    const toggleIntegration = async (provider: string, currentState: boolean) => {
+    // Enable/disable an integration. If turning on a provider that has no
+    // credentials yet, open the credentials dialog instead.
+    const setActive = async (provider: string, nextActive: boolean) => {
+        const current = info[provider]
+
+        if (nextActive && !current.configured) {
+            if (provider === "aws") setAwsDialogOpen(true)
+            if (provider === "resend") setResendDialogOpen(true)
+            return
+        }
+
         // Optimistic update
-        setIntegrations(prev => ({ ...prev, [provider]: !currentState }))
+        setInfo(prev => ({ ...prev, [provider]: { ...prev[provider], isActive: nextActive } }))
 
         try {
-            // We need to send credentials even for toggle if strictly following API, 
-            // but usually toggle should be separate or API should allow partial update.
-            // For now, our API expects credentials on POST. 
-            // Ideally we should have a PATCH endpoint or the POST should handle partials.
-            // As a workaround for this "Playground", we will just just toggle the state in UI if it was already connected?
-            // Actually, the API I wrote upserts. If I send without credentials it might overwrite with null.
-            // Let's rely on the user having configured it first. 
-            // Real fix: Update API to allow simple toggle or handle "if credentials missing, keep existing".
-            // For this iteration, I'll just assume re-entering creds or I'll quickly fix the API implicitly by valid checks.
-            // Actually, simplest is: valid creds required to ENABLE. Disable is safe.
-
-            // Wait, the API I wrote: `const { provider, credentials, isActive } = body`. It requires credentials.
-            // I should probably fix the API to be more robust, OR just require entering creds to enable.
-            // OR, I can fetch the existing integration first? No, security.
-
-            // Let's just prompt for credentials if enabling, unless we store them in state (we don't persist in state after refresh).
-            // So, clicking toggle ON will open the dialog if we don't have creds in memory? 
-            // Correct flow: 
-            // 1. If turning OFF -> Call API to set isActive: false (need to update API to allow optional creds)
-            // 2. If turning ON -> Open Dialog to re-enter/confirm creds.
-
-            if (!currentState) {
-                // Turning ON
-                if (provider === 'aws') setAwsDialogOpen(true)
-                if (provider === 'resend') setResendDialogOpen(true)
-                // Revert optimistic update until saved
-                setIntegrations(prev => ({ ...prev, [provider]: false }))
-                return
-            }
-
-            // Turning OFF
-            // I need to update the API to allow this.
-            // For now, let's just show a toast "Please use the Credentials button to update configuration"
-            toast.info("Disabling not fully supported without re-authentication in this demo version.")
-            setIntegrations(prev => ({ ...prev, [provider]: true })) // Revert
-
+            const res = await fetch("/api/integrations", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ provider, isActive: nextActive }),
+            })
+            if (!res.ok) throw new Error("Failed to update")
+            await fetchIntegrations()
+            toast.success(nextActive ? `${provider.toUpperCase()} activated` : `${provider.toUpperCase()} deactivated`)
         } catch (error) {
-            setIntegrations(prev => ({ ...prev, [provider]: currentState }))
+            // Revert on failure
+            setInfo(prev => ({ ...prev, [provider]: { ...prev[provider], isActive: current.isActive } }))
             toast.error("Failed to update status")
         }
     }
@@ -167,8 +185,8 @@ export default function IntegrationsPage() {
                 {/* Header Section */}
                 <div className="mb-8">
                     <div className="flex items-center gap-3 mb-2">
-                        <Cable className="h-8 w-8 text-neutral-400" />
-                        <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-white">Protocol_Connectors</h1>
+                        <Cable className="h-8 w-8 text-neutral-500" />
+                        <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-neutral-900">Protocol_Connectors</h1>
                     </div>
                     <p className="text-neutral-500 label-mono text-xs max-w-2xl ml-1">
                         Manage external gateway connections and API verifications.
@@ -178,7 +196,7 @@ export default function IntegrationsPage() {
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
                     {/* AWS SES Integration (Hero Card) */}
-                    <div className="editorial-card p-6 border border-neutral-800 bg-black/40 backdrop-blur-sm hover:border-neutral-600 transition-all group col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between">
+                    <div className="editorial-card p-6 border border-neutral-200 bg-white hover:border-neutral-300 transition-all group col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-between shadow-sm">
                         <div>
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-center gap-4">
@@ -186,73 +204,87 @@ export default function IntegrationsPage() {
                                         <span className="font-bold text-[#FF9900] text-lg">AWS</span>
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold text-white tracking-tight">Amazon SES</h3>
+                                        <h3 className="text-xl font-bold text-neutral-900 tracking-tight">Amazon SES</h3>
                                         <p className="text-[10px] text-neutral-500 label-mono mt-1">High-Volume Gateway</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3 bg-neutral-900/50 p-1.5 rounded-full border border-neutral-800">
-                                    <span className={`label-mono text-[9px] px-2 ${integrations.aws ? "text-green-500" : "text-neutral-600"}`}>
-                                        {integrations.aws ? "ACTIVE" : "INACTIVE"}
+                                <div className="flex items-center gap-3 bg-neutral-50 p-1.5 rounded-full border border-neutral-200">
+                                    <span className={`label-mono text-[9px] px-2 ${info.aws.isActive ? "text-green-600 font-semibold" : "text-neutral-400"}`}>
+                                        {info.aws.isActive ? "ACTIVE" : "INACTIVE"}
                                     </span>
-                                    {/* Toggle triggers dialog if activating */}
                                     <Switch
-                                        checked={integrations.aws}
-                                        onCheckedChange={(checked) => toggleIntegration('aws', !checked)}
+                                        checked={info.aws.isActive}
+                                        onCheckedChange={(checked) => setActive('aws', checked)}
                                         className="data-[state=checked]:bg-[#FF9900] scale-75"
                                     />
                                 </div>
                             </div>
 
-                            <p className="text-sm text-neutral-400 mb-8 font-light leading-relaxed max-w-xl">
+                            <p className="text-sm text-neutral-600 mb-4 font-light leading-relaxed max-w-xl">
                                 Direct integration with Amazon Simple Email Service for high-deliverability transactional emails. Supports sandbox and production environments.
                             </p>
+
+                            {info.aws.configured ? (
+                                <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 label-mono text-[10px] text-neutral-500">
+                                    <span className="flex items-center gap-1.5 text-green-600 font-semibold">
+                                        <CheckCircle2 className="h-3 w-3" /> CREDENTIALS_CONFIGURED
+                                    </span>
+                                    {info.aws.masked?.accessKeyId && <span>KEY {info.aws.masked.accessKeyId}</span>}
+                                    {info.aws.masked?.region && <span>REGION {info.aws.masked.region}</span>}
+                                    {info.aws.source === "env" && <span className="text-neutral-500">SOURCE ENV</span>}
+                                </div>
+                            ) : (
+                                <p className="mb-6 label-mono text-[10px] text-neutral-400">NO_CREDENTIALS — ADD KEYS TO ACTIVATE</p>
+                            )}
                         </div>
 
                         <div className="flex gap-3 mt-auto">
                             <Dialog open={awsDialogOpen} onOpenChange={setAwsDialogOpen}>
                                 <DialogTrigger asChild>
-                                    <Button variant="outline" className="label-mono text-[10px] h-9 border-neutral-800 bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white hover:border-neutral-600 gap-2 transition-all">
+                                    <Button variant="outline" className="label-mono text-[10px] h-9 border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-neutral-900 hover:border-neutral-300 gap-2 transition-all shadow-sm">
                                         <Key className="h-3 w-3" />
                                         Credentials
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent className="bg-[#0a0a0a] border-neutral-800 text-white sm:max-w-md">
+                                <DialogContent className="bg-white border-neutral-200 text-neutral-900 sm:max-w-md">
                                     <DialogHeader>
-                                        <DialogTitle>AWS Configuration</DialogTitle>
-                                        <DialogDescription>
-                                            Enter your AWS IAM credentials with SES access permissions.
+                                        <DialogTitle className="text-neutral-900 font-bold">AWS Configuration</DialogTitle>
+                                        <DialogDescription className="text-neutral-500">
+                                            {info.aws.configured
+                                                ? "Credentials are already configured. Enter new values to replace them, or leave blank to keep the current ones."
+                                                : "Enter your AWS IAM credentials with SES access permissions."}
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="space-y-4 py-4">
                                         <div className="space-y-2">
-                                            <Label htmlFor="aws-access">Access Key ID</Label>
+                                            <Label htmlFor="aws-access" className="text-neutral-700 font-medium">Access Key ID</Label>
                                             <Input
                                                 id="aws-access"
                                                 value={awsConfig.accessKeyId}
                                                 onChange={(e) => setAwsConfig({ ...awsConfig, accessKeyId: e.target.value })}
-                                                placeholder="AKIA..."
-                                                className="bg-neutral-900 border-neutral-800"
+                                                placeholder={info.aws.masked?.accessKeyId || "AKIA..."}
+                                                className="bg-white border-neutral-200 text-neutral-900 focus-visible:ring-neutral-400"
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="aws-secret">Secret Access Key</Label>
+                                            <Label htmlFor="aws-secret" className="text-neutral-700 font-medium">Secret Access Key</Label>
                                             <Input
                                                 id="aws-secret"
                                                 type="password"
                                                 value={awsConfig.secretAccessKey}
                                                 onChange={(e) => setAwsConfig({ ...awsConfig, secretAccessKey: e.target.value })}
                                                 placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-                                                className="bg-neutral-900 border-neutral-800"
+                                                className="bg-white border-neutral-200 text-neutral-900 focus-visible:ring-neutral-400"
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="aws-region">Region</Label>
+                                            <Label htmlFor="aws-region" className="text-neutral-700 font-medium">Region</Label>
                                             <Input
                                                 id="aws-region"
                                                 value={awsConfig.region}
                                                 onChange={(e) => setAwsConfig({ ...awsConfig, region: e.target.value })}
                                                 placeholder="us-east-1"
-                                                className="bg-neutral-900 border-neutral-800"
+                                                className="bg-white border-neutral-200 text-neutral-900 focus-visible:ring-neutral-400"
                                             />
                                         </div>
                                     </div>
@@ -260,7 +292,7 @@ export default function IntegrationsPage() {
                                         <Button
                                             onClick={handleSaveAws}
                                             disabled={isSavingAws}
-                                            className="bg-white text-black hover:bg-neutral-200"
+                                            className="bg-neutral-900 text-white hover:bg-neutral-800"
                                         >
                                             {isSavingAws && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                             Save_Connection
@@ -269,7 +301,7 @@ export default function IntegrationsPage() {
                                 </DialogContent>
                             </Dialog>
 
-                            <Button variant="outline" className="label-mono text-[10px] h-9 border-neutral-800 bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white hover:border-neutral-600 gap-2 transition-all">
+                            <Button variant="outline" className="label-mono text-[10px] h-9 border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-neutral-900 hover:border-neutral-300 gap-2 transition-all shadow-sm">
                                 <ShieldCheck className="h-3 w-3" />
                                 Verify_Domain
                             </Button>
@@ -277,54 +309,57 @@ export default function IntegrationsPage() {
                     </div>
 
                     {/* Resend Integration */}
-                    <div className="editorial-card p-6 border border-neutral-800 bg-black/40 backdrop-blur-sm hover:border-neutral-600 transition-all group flex flex-col justify-between">
+                    <div className="editorial-card p-6 border border-neutral-200 bg-white hover:border-neutral-300 transition-all group flex flex-col justify-between shadow-sm">
                         <div>
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 flex items-center justify-center rounded bg-white text-black border border-neutral-200">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded bg-neutral-900 text-white border border-neutral-800">
                                         <span className="font-bold text-lg">R</span>
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-white tracking-tight">Resend</h3>
+                                        <h3 className="text-lg font-bold text-neutral-900 tracking-tight">Resend</h3>
                                         <p className="text-[10px] text-neutral-500 label-mono mt-0.5">Modern API</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    <span className={`label-mono text-[9px] ${info.resend.isActive ? "text-green-600 font-semibold" : "text-neutral-400"}`}>
+                                        {info.resend.isActive ? "ACTIVE" : "INACTIVE"}
+                                    </span>
                                     <Switch
-                                        checked={integrations.resend}
-                                        onCheckedChange={(checked) => toggleIntegration('resend', !checked)}
-                                        className="data-[state=checked]:bg-white scale-75"
+                                        checked={info.resend.isActive}
+                                        onCheckedChange={(checked) => setActive('resend', checked)}
+                                        className="data-[state=checked]:bg-neutral-900 scale-75"
                                     />
                                 </div>
                             </div>
-                            <p className="text-sm text-neutral-400 mb-6 font-light leading-relaxed">
+                            <p className="text-sm text-neutral-600 mb-6 font-light leading-relaxed">
                                 Send emails using the Resend API for developer-first experience.
                             </p>
                         </div>
 
                         <Dialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="w-full btn-handcrafted text-[10px] h-9 mt-4">
-                                    {integrations.resend ? "Update_API_Key" : "Connect_API_Key"}
+                                <Button className="w-full btn-handcrafted text-[10px] h-9 mt-4 bg-neutral-900 text-white hover:bg-neutral-800 rounded-md">
+                                    {info.resend.configured ? "Update_API_Key" : "Connect_API_Key"}
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="bg-[#0a0a0a] border-neutral-800 text-white sm:max-w-md">
+                            <DialogContent className="bg-white border-neutral-200 text-neutral-900 sm:max-w-md">
                                 <DialogHeader>
-                                    <DialogTitle>Resend Configuration</DialogTitle>
-                                    <DialogDescription>
+                                    <DialogTitle className="text-neutral-900 font-bold">Resend Configuration</DialogTitle>
+                                    <DialogDescription className="text-neutral-500">
                                         Enter your Resend API Key.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="resend-key">API Key</Label>
+                                        <Label htmlFor="resend-key" className="text-neutral-700 font-medium">API Key</Label>
                                         <Input
                                             id="resend-key"
                                             type="password"
                                             value={resendKey}
                                             onChange={(e) => setResendKey(e.target.value)}
                                             placeholder="re_123456789"
-                                            className="bg-neutral-900 border-neutral-800"
+                                            className="bg-white border-neutral-200 text-neutral-900 focus-visible:ring-neutral-400"
                                         />
                                     </div>
                                 </div>
@@ -332,7 +367,7 @@ export default function IntegrationsPage() {
                                     <Button
                                         onClick={handleSaveResend}
                                         disabled={isSavingResend}
-                                        className="bg-white text-black hover:bg-neutral-200"
+                                        className="bg-neutral-900 text-white hover:bg-neutral-800"
                                     >
                                         {isSavingResend && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Connect
@@ -343,50 +378,50 @@ export default function IntegrationsPage() {
                     </div>
 
                     {/* SendGrid (Coming Soon) */}
-                    <div className="editorial-card p-6 border border-neutral-900 bg-neutral-900/20 backdrop-blur-sm grayscale opacity-70 hover:opacity-100 transition-all">
+                    <div className="editorial-card p-6 border border-neutral-200 bg-neutral-50/50 backdrop-blur-sm grayscale opacity-70 hover:opacity-100 transition-all shadow-sm">
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 flex items-center justify-center rounded bg-blue-500/10 border border-blue-500/20">
                                     <span className="font-bold text-blue-500">SG</span>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-neutral-500">SendGrid</h3>
-                                    <p className="text-[10px] text-neutral-700 label-mono mt-0.5">Legacy SMTP</p>
+                                    <h3 className="text-lg font-bold text-neutral-700">SendGrid</h3>
+                                    <p className="text-[10px] text-neutral-500 label-mono mt-0.5">Legacy SMTP</p>
                                 </div>
                             </div>
-                            <Badge variant="outline" className="border-neutral-800 bg-neutral-900 text-neutral-600 label-mono text-[9px]">SOON</Badge>
+                            <Badge variant="outline" className="border-neutral-200 bg-white text-neutral-400 label-mono text-[9px]">SOON</Badge>
                         </div>
                     </div>
 
                     {/* Mailgun (Coming Soon) */}
-                    <div className="editorial-card p-6 border border-neutral-900 bg-neutral-900/20 backdrop-blur-sm grayscale opacity-70 hover:opacity-100 transition-all">
+                    <div className="editorial-card p-6 border border-neutral-200 bg-neutral-50/50 backdrop-blur-sm grayscale opacity-70 hover:opacity-100 transition-all shadow-sm">
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 flex items-center justify-center rounded bg-red-500/10 border border-red-500/20">
                                     <span className="font-bold text-red-500">MG</span>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-neutral-500">Mailgun</h3>
-                                    <p className="text-[10px] text-neutral-700 label-mono mt-0.5">Enterprise</p>
+                                    <h3 className="text-lg font-bold text-neutral-700">Mailgun</h3>
+                                    <p className="text-[10px] text-neutral-500 label-mono mt-0.5">Enterprise</p>
                                 </div>
                             </div>
-                            <Badge variant="outline" className="border-neutral-800 bg-neutral-900 text-neutral-600 label-mono text-[9px]">SOON</Badge>
+                            <Badge variant="outline" className="border-neutral-200 bg-white text-neutral-400 label-mono text-[9px]">SOON</Badge>
                         </div>
                     </div>
 
                     {/* Postmark (Coming Soon) */}
-                    <div className="editorial-card p-6 border border-neutral-900 bg-neutral-900/20 backdrop-blur-sm grayscale opacity-70 hover:opacity-100 transition-all">
+                    <div className="editorial-card p-6 border border-neutral-200 bg-neutral-50/50 backdrop-blur-sm grayscale opacity-70 hover:opacity-100 transition-all shadow-sm">
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 flex items-center justify-center rounded bg-yellow-500/10 border border-yellow-500/20">
                                     <span className="font-bold text-yellow-500">PM</span>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-neutral-500">Postmark</h3>
-                                    <p className="text-[10px] text-neutral-700 label-mono mt-0.5">Reliability</p>
+                                    <h3 className="text-lg font-bold text-neutral-700">Postmark</h3>
+                                    <p className="text-[10px] text-neutral-500 label-mono mt-0.5">Reliability</p>
                                 </div>
                             </div>
-                            <Badge variant="outline" className="border-neutral-800 bg-neutral-900 text-neutral-600 label-mono text-[9px]">SOON</Badge>
+                            <Badge variant="outline" className="border-neutral-200 bg-white text-neutral-400 label-mono text-[9px]">SOON</Badge>
                         </div>
                     </div>
 

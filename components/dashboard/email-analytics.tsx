@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getAnalytics } from "@/lib/analytics-client"
 
 interface AnalyticsData {
   date: string
@@ -18,53 +19,28 @@ export function EmailAnalytics() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Use AbortController for cancellable fetch
   useEffect(() => {
-    const controller = new AbortController()
-    const signal = controller.signal
+    let active = true
 
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        const analyticsData = await fetchAnalyticsData()
+    getAnalytics()
+      .then((analyticsData) => {
+        if (!active) return
         setData(analyticsData.monthlyData || [])
         setError(null)
-      } catch (error) {
-        // Only set error if not aborted
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error("Error fetching analytics data:", error)
-          setError("Failed to load analytics data")
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
+      })
+      .catch((err) => {
+        if (!active) return
+        console.error("Error fetching analytics data:", err)
+        setError("Failed to load analytics data")
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
-    fetchData()
-
-    // Cleanup function to abort fetch on unmount
     return () => {
-      controller.abort()
+      active = false
     }
   }, [])
-
-  async function fetchAnalyticsData() {
-    // Force fresh data on each request
-    const response = await fetch("/api/analytics", {
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch analytics data")
-    }
-
-    return await response.json()
-  }
 
   // Memoize the chart to prevent unnecessary re-renders
   const chart = useMemo(() => {

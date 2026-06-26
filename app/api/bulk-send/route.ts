@@ -146,6 +146,17 @@ export async function POST(request: NextRequest) {
             attachments: processedAttachments,
           })
 
+          // Don't record a failed send as successful.
+          if (!result.success) {
+            console.error(`Failed to send email to ${recipient.email}:`, result.error)
+            results.push({
+              email: recipient.email,
+              success: false,
+              error: result.error instanceof Error ? result.error.message : "Failed to send email",
+            })
+            continue
+          }
+
           // Log the email
           await connectToDatabase()
           const emailLog = new EmailLog({
@@ -244,6 +255,17 @@ export async function POST(request: NextRequest) {
             subject: finalSubject,
             html: finalMessage,
           })
+
+          // Don't record a failed send as successful.
+          if (!result.success) {
+            console.error(`Failed to send email to ${recipient.email}:`, result.error)
+            results.push({
+              email: recipient.email,
+              success: false,
+              error: result.error instanceof Error ? result.error.message : "Failed to send email",
+            })
+            continue
+          }
 
           // Log the email
           await connectToDatabase()

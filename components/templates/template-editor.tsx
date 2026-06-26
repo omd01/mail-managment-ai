@@ -729,7 +729,7 @@ export function TemplateEditor({ id }: TemplateEditorProps) {
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="name">
                 Template Name <span className="text-destructive">*</span>
               </Label>
@@ -741,41 +741,6 @@ export function TemplateEditor({ id }: TemplateEditorProps) {
                 required
                 aria-required="true"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="templateType">
-                Template Type <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={template.templateType}
-                onValueChange={(value) => handleTemplateTypeChange(value as "html" | "react" | "tailwind")}
-              >
-                <SelectTrigger id="templateType" aria-label="Select template type">
-                  <SelectValue placeholder="Select template type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="html" className="flex items-center">
-                    <div className="flex items-center">
-                      <Code className="mr-2 h-4 w-4" />
-                      HTML
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="react">
-                    <div className="flex items-center">
-                      <Code className="mr-2 h-4 w-4" />
-                      React JSX
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="tailwind">
-                    <div className="flex items-center">
-                      <Palette className="mr-2 h-4 w-4" />
-                      Tailwind CSS
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Choose the format for your email template</p>
             </div>
 
             <div className="space-y-2 sm:col-span-2">

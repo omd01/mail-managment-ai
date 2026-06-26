@@ -6,6 +6,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Info } from "lucide-react"
+import { getAnalytics } from "@/lib/analytics-client"
 
 interface CostData {
   month: string
@@ -15,34 +16,6 @@ interface CostData {
 // AWS SES free tier limit (62,000 emails per month)
 const FREE_TIER_LIMIT = 62000
 
-// Reuse the shared analytics cache from EmailStats
-let analyticsCache: any = null
-let lastFetchTime = 0
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
-
-async function fetchAnalyticsData() {
-  const now = Date.now()
-
-  if (analyticsCache && now - lastFetchTime < CACHE_DURATION) {
-    return analyticsCache
-  }
-
-  const response = await fetch("/api/analytics", {
-    cache: "force-cache",
-    next: { revalidate: 300 },
-  })
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch analytics data")
-  }
-
-  const data = await response.json()
-  analyticsCache = data
-  lastFetchTime = now
-
-  return data
-}
-
 export function PricingChart() {
   const [data, setData] = useState<CostData[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,39 +24,30 @@ export function PricingChart() {
   const [freeQuotaExceeded, setFreeQuotaExceeded] = useState(false)
 
   useEffect(() => {
-    const controller = new AbortController()
-    const signal = controller.signal
+    let active = true
 
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        const analyticsData = await fetchAnalyticsData()
-
-        // Set cost data
+    getAnalytics()
+      .then((analyticsData) => {
+        if (!active) return
         setData(analyticsData.costs || [])
-
-        // Check if total emails sent exceeds free tier
         if (analyticsData.emailStats && analyticsData.emailStats.total) {
           const total = analyticsData.emailStats.total
           setTotalSent(total)
           setFreeQuotaExceeded(total > FREE_TIER_LIMIT)
         }
-
         setError(null)
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error("Error fetching cost data:", error)
-          setError("Failed to load cost data")
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
+      })
+      .catch((err) => {
+        if (!active) return
+        console.error("Error fetching cost data:", err)
+        setError("Failed to load cost data")
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
     return () => {
-      controller.abort()
+      active = false
     }
   }, [])
 

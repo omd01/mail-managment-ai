@@ -11,8 +11,10 @@ const NO_CACHE_HEADERS = {
   Expires: "0",
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
+
     // Get the current user
     const user = await getCurrentUser()
 
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     await connectToDatabase()
     const template = await Template.findOne({
-      _id: params.id,
+      _id: id,
       userId: user.id,
     })
 
@@ -80,8 +82,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
+
     // Get the current user
     const user = await getCurrentUser()
 
@@ -105,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     await connectToDatabase()
     const template = await Template.findOneAndUpdate(
       {
-        _id: params.id,
+        _id: id,
         userId: user.id,
       },
       {
@@ -133,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Aggressively revalidate all related paths
     revalidatePath("/", "layout")
     revalidatePath("/templates", "layout")
-    revalidatePath(`/templates/${params.id}`, "layout")
+    revalidatePath(`/templates/${id}`, "layout")
     revalidatePath("/send", "layout")
 
     return NextResponse.json(template, {
@@ -151,8 +155,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
+
     // Get the current user
     const user = await getCurrentUser()
 
@@ -162,7 +168,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     await connectToDatabase()
     const template = await Template.findOneAndDelete({
-      _id: params.id,
+      _id: id,
       userId: user.id,
     })
 
@@ -179,7 +185,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     // Aggressively revalidate all related paths
     revalidatePath("/", "layout")
     revalidatePath("/templates", "layout")
-    revalidatePath(`/templates/${params.id}`, "layout")
+    revalidatePath(`/templates/${id}`, "layout")
     revalidatePath("/send", "layout")
 
     return NextResponse.json(

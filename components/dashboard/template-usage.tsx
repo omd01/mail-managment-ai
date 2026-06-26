@@ -5,33 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getAnalytics } from "@/lib/analytics-client"
 
 interface TemplateUsageData {
   name: string
   usage: number
-}
-
-// Reuse the shared analytics cache from EmailStats
-const analyticsCache: any = null
-const lastFetchTime = 0
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
-
-async function fetchAnalyticsData() {
-  // Force fresh data on each request
-  const response = await fetch("/api/analytics", {
-    cache: "no-store",
-    headers: {
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch analytics data")
-  }
-
-  return await response.json()
 }
 
 export function TemplateUsage() {
@@ -40,29 +18,25 @@ export function TemplateUsage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const controller = new AbortController()
-    const signal = controller.signal
+    let active = true
 
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        const analyticsData = await fetchAnalyticsData()
+    getAnalytics()
+      .then((analyticsData) => {
+        if (!active) return
         setData(analyticsData.templateUsage || [])
         setError(null)
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error("Error fetching template usage data:", error)
-          setError("Failed to load template usage data")
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
+      })
+      .catch((err) => {
+        if (!active) return
+        console.error("Error fetching template usage data:", err)
+        setError("Failed to load template usage data")
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
     return () => {
-      controller.abort()
+      active = false
     }
   }, [])
 

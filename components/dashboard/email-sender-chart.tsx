@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts"
+import { getAnalytics } from "@/lib/analytics-client"
 
 interface EmailSenderData {
   name: string
@@ -15,78 +16,29 @@ export function EmailSenderChart() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Reuse the shared analytics cache from EmailStats
-  const analyticsCache: any = null
-  const lastFetchTime = 0
-  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
-
-  async function fetchAnalyticsData() {
-    // Force fresh data on each request
-    const response = await fetch("/api/analytics", {
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch analytics data")
-    }
-
-    return await response.json()
-  }
-
-  /*
   useEffect(() => {
-    const controller = new AbortController()
-    const signal = controller.signal
+    let active = true
 
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        const analyticsData = await fetchAnalyticsData()
-
-        if (analyticsData.senderStats && Array.isArray(analyticsData.senderStats)) {
+    getAnalytics()
+      .then((analyticsData) => {
+        if (!active) return
+        if (Array.isArray(analyticsData.senderStats) && analyticsData.senderStats.length > 0) {
           setData(analyticsData.senderStats)
-        } else {
-          // Fallback data if not available yet
-          setData([
-            { name: "noreply@linksus.in", value: 45 },
-            { name: "support@linksus.in", value: 30 },
-            { name: "info@linksus.in", value: 25 },
-          ])
         }
-
         setError(null)
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error("Error fetching sender stats data:", error)
-          setError("Failed to load sender stats data")
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
+      })
+      .catch((err) => {
+        if (!active) return
+        console.error("Error fetching sender stats data:", err)
+        setError("Failed to load sender stats data")
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
     return () => {
-      controller.abort()
+      active = false
     }
-  }, [])
-  */
-
-  // Auto-fetch disabled
-  useEffect(() => {
-    setLoading(false)
-    // Set dummy data so it doesn't look broken
-    setData([
-      { name: "noreply@linksus.in", value: 45 },
-      { name: "support@linksus.in", value: 30 },
-      { name: "info@linksus.in", value: 25 },
-    ])
   }, [])
 
   // Define bright, high-contrast colors that will be visible in dark mode

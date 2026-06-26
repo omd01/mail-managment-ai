@@ -55,7 +55,9 @@ function TemplateEditorSkeleton() {
   )
 }
 
-export default function TemplateEditorPage({ params }: { params: { id: string } }) {
+export default async function TemplateEditorPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+
   return (
     <DashboardShell>
       <DashboardHeader heading="Edit Template" text="Customize your email template and send test emails.">
@@ -74,7 +76,7 @@ export default function TemplateEditorPage({ params }: { params: { id: string } 
         </div>
 
         <Suspense fallback={<TemplateEditorSkeleton />}>
-          <TemplateEditor id={params.id} />
+          <TemplateEditor id={id} />
         </Suspense>
       </div>
     </DashboardShell>

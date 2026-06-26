@@ -6,7 +6,7 @@ interface DashboardShellProps {
 
 export function DashboardShell({ children }: DashboardShellProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-black">
+    <div className="flex min-h-screen flex-col bg-[#fafafc]">
       {/* Blueprint grid for dashboard too, to match theme */}
       <div className="blueprint-bg z-0"></div>
 

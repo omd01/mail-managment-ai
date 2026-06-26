@@ -63,14 +63,9 @@ export function SesQuotaChart() {
     }
   }
 
-  /*
   useEffect(() => {
     fetchQuota()
-  }, [])
-  */
-  // Auto-fetch disabled as per user request to prevent error spam until settings configured
-  useEffect(() => {
-    setLoading(false) // Just stop loading state so it doesn't spin forever
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Calculate remaining emails

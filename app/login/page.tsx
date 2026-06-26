@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen w-full relative flex items-center justify-center overflow-hidden bg-black text-white">
+    <div className="min-h-screen w-full relative flex items-center justify-center overflow-hidden bg-[#fafafc] text-neutral-900">
       {/* Background Grid */}
       <div className="blueprint-bg"></div>
 
@@ -17,21 +17,21 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md px-4">
         <div className="mb-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
           <Link href="/" className="inline-block mb-6">
-            <span className="font-black text-2xl tracking-tighter">NOBOUNCE<span className="text-neutral-600">.</span></span>
+            <span className="font-black text-2xl tracking-tighter text-neutral-900">NOBOUNCE<span className="text-neutral-400">.</span></span>
           </Link>
           <div className="label-mono mb-2 text-neutral-500">System Access</div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Initialize Session</h1>
           <p className="text-neutral-500 text-sm">Enter credentials to access the verification engine.</p>
         </div>
 
-        <div className="editorial-card p-8 md:p-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+        <div className="editorial-card p-8 md:p-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 bg-white border-neutral-200 shadow-sm rounded-xl">
           <LoginForm />
         </div>
 
         <div className="mt-8 text-center animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
-          <div className="flex justify-center gap-6 label-mono text-[10px] text-neutral-600">
-            <Link href="/terms" className="hover:text-neutral-400 transition-colors">Protocol_Terms</Link>
-            <Link href="/privacy" className="hover:text-neutral-400 transition-colors">Data_Privacy</Link>
+          <div className="flex justify-center gap-6 label-mono text-[10px] text-neutral-500">
+            <Link href="/terms" className="hover:text-neutral-800 transition-colors">Protocol_Terms</Link>
+            <Link href="/privacy" className="hover:text-neutral-800 transition-colors">Data_Privacy</Link>
             <span>v.0.4.2</span>
           </div>
         </div>
