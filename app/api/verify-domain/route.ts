@@ -95,9 +95,9 @@ export async function POST(request: Request) {
       }
 
       // Save domain to user record
-      user.domain = domain
-      user.domainVerified = false
-      await user.save()
+      dbUser.domain = domain
+      dbUser.domainVerified = false
+      await dbUser.save()
 
       return NextResponse.json({
         verified: false,
@@ -111,9 +111,9 @@ export async function POST(request: Request) {
 
     // If domain is verified, update user record
     if (isVerified) {
-      user.domain = domain
-      user.domainVerified = true
-      await user.save()
+      dbUser.domain = domain
+      dbUser.domainVerified = true
+      await dbUser.save()
     }
 
     return NextResponse.json({

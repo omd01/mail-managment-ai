@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     // Generate the template content using OpenAI
     const { text } = await generateText({
-      model: openai("gpt-4o", { apiKey: process.env.OPENAI_API_KEY }),
+      model: openai("gpt-4o") as any,
       system: systemPrompt,
       prompt: prompt,
       temperature: 0.7,

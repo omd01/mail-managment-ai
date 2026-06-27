@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
 
             if (variables) {
               try {
-                const parsedVariables = JSON.parse(variables as string)
+                const parsedVariables = typeof variables === "string" ? JSON.parse(variables) : (variables as any)
                 Object.entries(parsedVariables).forEach(([key, value]) => {
                   processedUrl = processedUrl.replace(new RegExp(`{{${key}}}`, "g"), (value as string) || `{{${key}}}`)
                 })

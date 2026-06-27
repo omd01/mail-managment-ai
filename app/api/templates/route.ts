@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
       {
         name: 1,
         description: 1,
+        subject: 1, // Include subject for listings
         content: 1, // Include content for preview
         templateType: 1, // Include template type for styling
         createdAt: 1,

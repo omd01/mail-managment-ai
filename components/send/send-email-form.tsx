@@ -200,7 +200,7 @@ export function SendEmailForm() {
 
       if (template.variables && template.variables.length > 0) {
         const initialValues: VariableValues = {}
-        template.variables.forEach(variable => initialValues[variable] = "")
+        template.variables.forEach((variable: string) => initialValues[variable] = "")
         setVariableValues(initialValues)
         setPreviewHtml(compileTemplate(template.content, (template.templateType || "html") as any, initialValues))
       } else {

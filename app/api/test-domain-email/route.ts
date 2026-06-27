@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     })
 
     if (!result.success) {
-      throw new Error(result.error || "Failed to send test email")
+      throw new Error((result.error as any) || "Failed to send test email")
     }
 
     // Log the email

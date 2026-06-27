@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { compileTemplate } from "@/lib/template-compiler"
 
 interface AvailableEmail {
   _id: string
@@ -74,6 +75,8 @@ export function BulkEmailForm() {
   const [availableEmails, setAvailableEmails] = useState<AvailableEmail[]>([])
   const [fromEmail, setFromEmail] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [selectedProvider, setSelectedProvider] = useState<string>("auto")
+  const [integrations, setIntegrations] = useState<Record<string, boolean>>({ aws: false, resend: false })
   const [currentTemplate, setCurrentTemplate] = useState<Template | null>(null)
   const [recipients, setRecipients] = useState<Recipient[]>([{ email: "", variables: {}, status: "pending" }])
   const [bulkEmailText, setBulkEmailText] = useState("")
@@ -92,7 +95,7 @@ export function BulkEmailForm() {
   const [attachments, setAttachments] = useState<File[]>([])
   const [staticAttachments, setStaticAttachments] = useState<{ name: string; url: string }[]>([])
 
-  // Fetch available emails and templates
+  // Fetch available emails, templates, and active integrations
   useEffect(() => {
     const fetchAvailableEmails = async () => {
       try {
@@ -136,20 +139,41 @@ export function BulkEmailForm() {
       }
     }
 
+    const fetchIntegrations = async () => {
+      try {
+        const res = await fetch("/api/integrations")
+        if (res.ok) {
+          const data = await res.json()
+          const statusMap: Record<string, boolean> = {}
+          data.integrations.forEach((i: any) => {
+            statusMap[i.provider] = i.isActive
+          })
+          setIntegrations(prev => ({ ...prev, ...statusMap }))
+        }
+      } catch (error) {
+        console.error("Failed to fetch integrations", error)
+      }
+    }
+
     fetchAvailableEmails()
     fetchTemplates()
+    fetchIntegrations()
   }, [])
 
-  // Update the handleTemplateChange function to better handle template variables
-  const handleTemplateChange = (value: string) => {
+  // Update the handleTemplateChange function to fetch the full template content dynamically
+  const handleTemplateChange = async (value: string) => {
     setSelectedTemplate(value)
     if (value === "none") {
       setCurrentTemplate(null)
       return
     }
 
-    const template = templates.find((t) => t._id === value)
-    if (template) {
+    try {
+      // Fetch full, untruncated template details
+      const response = await fetch(`/api/templates/${value}`)
+      if (!response.ok) throw new Error("Failed to fetch template details")
+      const template = await response.json()
+
       setCurrentTemplate(template)
 
       // Don't allow editing the subject when using a template
@@ -163,7 +187,7 @@ export function BulkEmailForm() {
         setRecipients((prevRecipients) =>
           prevRecipients.map((recipient) => {
             const newVariables: Record<string, string> = {}
-            template.variables?.forEach((variable) => {
+            template.variables?.forEach((variable: string) => {
               // Preserve existing variable values if they exist
               newVariables[variable] = recipient.variables[variable] || ""
             })
@@ -174,6 +198,13 @@ export function BulkEmailForm() {
           }),
         )
       }
+    } catch (err) {
+      console.error("Error loading template details:", err)
+      toast({
+        title: "Error Loading Template",
+        description: "Failed to load full template content.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -399,7 +430,7 @@ export function BulkEmailForm() {
 
         if (emailMode === "template" && currentTemplate) {
           finalSubject = replaceVariables(currentTemplate.subject, recipient.variables)
-          finalMessage = replaceVariables(currentTemplate.content, recipient.variables)
+          finalMessage = compileTemplate(currentTemplate.content, (currentTemplate.templateType || "html") as any, recipient.variables)
         }
 
         // Create FormData for file uploads
@@ -408,6 +439,10 @@ export function BulkEmailForm() {
         formData.append("to", recipient.email)
         formData.append("subject", finalSubject)
         formData.append("html", finalMessage)
+
+        if (selectedProvider !== "auto") {
+          formData.append("provider", selectedProvider)
+        }
 
         if (emailMode === "template" && selectedTemplate !== "none") {
           formData.append("templateId", selectedTemplate)
@@ -636,26 +671,58 @@ export function BulkEmailForm() {
         </CardContent>
 
         <CardContent className="space-y-6">
-          {/* Sender Email */}
-          <div className="space-y-2">
-            <Label htmlFor="from">From</Label>
-            <Select value={fromEmail} onValueChange={setFromEmail}>
-              <SelectTrigger id="from">
-                <SelectValue placeholder="Select sender email" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableEmails.length > 0 ? (
-                  availableEmails.map((email) => (
-                    <SelectItem key={email._id} value={email.email}>
-                      {email.email}
-                      {email.description && ` - ${email.description}`}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="test@aimailer.com">test@aimailer.com</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+          {/* Gateway Provider & Sender Email */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="provider" className="label-mono text-neutral-500 font-medium">Gateway_Provider</Label>
+              <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                <SelectTrigger id="provider" className="w-full bg-white border-neutral-200 focus-visible:ring-neutral-400 h-10 py-2 text-neutral-900 shadow-sm">
+                  <SelectValue placeholder="Select Gateway" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-neutral-200 z-[999] text-neutral-900">
+                  <SelectItem value="auto">
+                    <span className="font-bold">Auto (Best Available)</span>
+                  </SelectItem>
+                  <SelectItem value="aws" disabled={!integrations['aws']}>
+                    <div className="flex items-center gap-2">
+                      <span>Amazon SES</span>
+                      <Badge variant="outline" className={`text-[10px] h-4 px-1 ${integrations['aws'] ? 'text-green-500 border-green-200 bg-green-50' : 'text-neutral-500 border-neutral-200'}`}>
+                        {integrations['aws'] ? 'ACTIVE' : 'INACTIVE'}
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="resend" disabled={!integrations['resend']}>
+                    <div className="flex items-center gap-2">
+                      <span>Resend API</span>
+                      <Badge variant="outline" className={`text-[10px] h-4 px-1 ${integrations['resend'] ? 'text-green-500 border-green-200 bg-green-50' : 'text-neutral-500 border-neutral-200'}`}>
+                        {integrations['resend'] ? 'ACTIVE' : 'INACTIVE'}
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="from" className="label-mono text-neutral-500 font-medium">From_Identity</Label>
+              <Select value={fromEmail} onValueChange={setFromEmail}>
+                <SelectTrigger id="from" className="w-full bg-white border-neutral-200 focus-visible:ring-neutral-400 h-10 py-2 text-neutral-900 shadow-sm">
+                  <SelectValue placeholder="Select sender email" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-neutral-200 text-neutral-900">
+                  {availableEmails.length > 0 ? (
+                    availableEmails.map((email) => (
+                      <SelectItem key={email._id} value={email.email}>
+                        <span className="font-mono text-xs text-neutral-800">{email.email}</span>
+                        {email.description && ` - ${email.description}`}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="test@aimailer.com" disabled>No verified identities found</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <TabsContent value="simple" className="space-y-6 mt-0">

@@ -2,10 +2,10 @@ import mongoose from "mongoose"
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/mail-management"
 
-let cached = global.mongoose
+let cached = (global as any).mongoose
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null }
+  cached = (global as any).mongoose = { conn: null, promise: null }
 }
 
 export async function connectToDatabase() {

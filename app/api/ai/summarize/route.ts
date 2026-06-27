@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured")
 
     const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
+      model: openai("gpt-4o-mini") as any,
       system:
         "You are an assistant that summarizes email threads for a busy professional. " +
         "Respond in markdown with three sections: an 'Overview' (1-2 sentences), " +

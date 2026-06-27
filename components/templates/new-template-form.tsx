@@ -450,7 +450,7 @@ export function NewTemplateForm() {
         throw new Error("Failed to generate template content")
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as { content: string; variables?: string[] }
 
       // Update the template content
       setTemplate((prev) => ({
